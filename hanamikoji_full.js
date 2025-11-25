@@ -541,9 +541,21 @@ const HTML_CONTENT = `
             --geisha-h: 140px;
         }
         body { margin: 0; background: var(--bg-dark); color: var(--text); font-family: 'Noto Sans JP', sans-serif; overflow: hidden; user-select: none; }
-        #app { height: 100vh; display: flex; flex-direction: column; }
+        #app { height: 100vh; display: flex; flex-direction: column; position: relative; z-index: 1; }
         
-        .lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at center, #2c3e50, #000); }
+        /* Sakura Background */
+        #sakura-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; overflow: hidden; }
+        .sakura {
+            position: absolute;
+            background: #ffb7c5;
+            border-radius: 100% 0 100% 0;
+            opacity: 0.6;
+            animation: fall linear infinite, sway ease-in-out infinite alternate;
+        }
+        @keyframes fall { to { top: 110%; } }
+        @keyframes sway { from { transform: translateX(0) rotate(0deg); } to { transform: translateX(100px) rotate(360deg); } }
+
+        .lobby { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at center, #2c3e50, #000); position: relative; z-index: 2; }
         .title { font-size: 4rem; margin-bottom: 2rem; color: var(--accent); text-shadow: 0 0 20px rgba(233,69,96,0.5); letter-spacing: 5px; }
         .menu { display: flex; flex-direction: column; gap: 1rem; width: 300px; }
         input { padding: 15px; border-radius: 5px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 1.2rem; text-align: center; }
@@ -551,7 +563,7 @@ const HTML_CONTENT = `
         button:hover { transform: scale(1.05); box-shadow: 0 0 15px var(--accent); }
         
         /* Layout Update: 3 Columns */
-        .game-container { flex: 1; display: flex; flex-direction: row; position: relative; overflow: hidden; }
+        .game-container { flex: 1; display: flex; flex-direction: row; position: relative; overflow: hidden; z-index: 2; }
         
         .side-panel {
             width: 220px;
@@ -582,14 +594,14 @@ const HTML_CONTENT = `
             display: flex; justify-content: center; align-items: center;
             font-weight: bold; font-size: 1.5rem; color: #333;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
             position: relative;
             box-shadow: 0 2px 5px rgba(0,0,0,0.5);
             border: 2px solid #444;
             background-image: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%);
         }
-        .card:hover { transform: translateY(-5px); }
-        .card.selected { transform: translateY(-15px); border-color: var(--accent); box-shadow: 0 0 15px var(--accent); }
+        .card:hover { transform: translateY(-8px) scale(1.05); box-shadow: 0 10px 20px rgba(0,0,0,0.4); z-index: 10; }
+        .card.selected { transform: translateY(-15px) scale(1.05); border-color: var(--accent); box-shadow: 0 0 15px var(--accent); z-index: 10; }
         .card.opponent { background: #34495e; background-image: repeating-linear-gradient(45deg, #2c3e50 25%, transparent 25%, transparent 75%, #2c3e50 75%, #2c3e50); background-size: 10px 10px; }
         
         .card.mini { width: 50px; height: 75px; font-size: 1rem; cursor: default; }
@@ -603,19 +615,20 @@ const HTML_CONTENT = `
             display: flex; flex-direction: column; align-items: center;
             border: 2px solid #555;
             transition: all 0.3s;
+            /* overflow: hidden; Removed to allow markers outside */
         }
         .geisha-img { flex: 1; width: 100%; border-radius: 6px 6px 0 0; background-size: cover; background-position: top center; opacity: 1; }
-        .geisha-val { height: 25px; width: 100%; background: rgba(0,0,0,0.6); color: white; display: flex; justify-content: center; align-items: center; font-weight: bold; }
+        .geisha-val { height: 25px; width: 100%; background: rgba(0,0,0,0.6); color: white; display: flex; justify-content: center; align-items: center; font-weight: bold; border-radius: 0 0 6px 6px; }
+        
         .favor-marker {
             width: 24px; height: 24px; border-radius: 50%;
             background: radial-gradient(circle, #ffd700, #b8860b);
             position: absolute; left: 50%; transform: translateX(-50%);
             box-shadow: 0 2px 4px rgba(0,0,0,0.8);
             transition: top 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-            z-index: 10;
+            z-index: 20;
             border: 2px solid #fff;
         }
-        .geisha.favor-0 .favor-marker { top: 10px; } 
         
         .side-cards { position: absolute; width: 100%; display: flex; justify-content: center; gap: 2px; }
         .side-cards.top { top: -40px; }
@@ -652,6 +665,7 @@ const HTML_CONTENT = `
     </style>
 </head>
 <body>
+    <div id="sakura-container"></div>
     <div id="app">
         <!-- Lobby -->
         <div v-if="!game" class="lobby">
@@ -802,14 +816,31 @@ const HTML_CONTENT = `
                     <button @click="game = null">Back to Menu</button>
                 </div>
             </div>
-
             
             <div v-if="toast" class="toast">{{ toast }}</div>
         </div>
     </div>
 
     <script>
-        const { createApp, ref, computed, watch } = Vue;
+        const { createApp, ref, computed, watch, onMounted } = Vue;
+
+        // Sakura Effect
+        const createSakura = () => {
+            const container = document.getElementById('sakura-container');
+            if (!container) return;
+            const el = document.createElement('div');
+            el.className = 'sakura';
+            el.style.left = Math.random() * 100 + '%';
+            el.style.top = '-10px';
+            const size = Math.random() * 10 + 10;
+            el.style.width = size + 'px';
+            el.style.height = size + 'px';
+            el.style.animationDuration = (Math.random() * 3 + 4) + 's, ' + (Math.random() * 2 + 2) + 's';
+            el.style.animationDelay = '0s, ' + (Math.random() * 1) + 's';
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 8000);
+        };
+        setInterval(createSakura, 300);
 
         createApp({
             setup() {
@@ -962,8 +993,9 @@ const HTML_CONTENT = `
 
                 const getFavorPos = (favor) => {
                     if (favor === null) return '50%';
-                    if (favor === game.value.me.index) return '92%';
-                    return '8%';
+                    // Position outside the card
+                    if (favor === game.value.me.index) return 'calc(100% + 5px)'; 
+                    return '-25px';
                 };
 
                 const getMySide = (gid) => {
