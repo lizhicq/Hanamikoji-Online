@@ -2,7 +2,7 @@
 
 A beautiful, real-time online implementation of the classic board game **Hanamikoji**.
 
-![Game Interface](/Users/lizhicq/.gemini/antigravity/brain/0afbbbf3-1708-4f00-9b45-c778a08d6d09/hanamikoji_gameplay_1764112932908.png)
+![Game Interface](screenshot.png)
 
 ## Overview
 
